@@ -297,3 +297,11 @@ class DeliveryDatabase:
         finally:
             if 'conn' in locals():
                 conn.close()
+
+# Виджет для отображения графика - дата и выручка
+class RevenueGraph(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.figure, self.ax = plt.subplots(figsize=(8, 4))
+        self.canvas = FigureCanvas(self.figure)
+        self.init_ui()
