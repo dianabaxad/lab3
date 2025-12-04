@@ -345,3 +345,5 @@ class RevenueGraph(QWidget):
                 self.ax.set_yticks([])
 
             self.canvas.draw()
+# Главное окно приложения
+class DeliveryApp(QMainWindow):
