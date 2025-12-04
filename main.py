@@ -347,3 +347,158 @@ class RevenueGraph(QWidget):
             self.canvas.draw()
 # Главное окно приложения
 class DeliveryApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        try:
+            self.db = DeliveryDatabase()
+            self.init_ui()
+            self.load_orders()
+            self.update_graph()
+            self.update_general_statistics()
+        except DatabaseError as e:
+            QMessageBox.critical(self, "Ошибка базы данных", str(e))
+            sys.exit(1)
+        except Exception as e:
+            QMessageBox.critical(self, "Критическая ошибка", f"Не удалось запустить приложение: {str(e)}")
+            sys.exit(1)
+
+    def init_ui(self):
+        """Инициализация пользоватерского интерфейса"""
+        self.setWindowTitle("Сервис доставки продуктов")
+        self.setGeometry(100, 100, 1200, 700)
+
+        # Создаем центральный виджет
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
+        # Создаем меню
+        self.create_menu()
+
+        # Верхняя часть: форма ввода данных
+        input_group = QGroupBox("Добавить новый заказ")
+        form_layout = QFormLayout()
+
+        self.customer_input = QLineEdit()
+        self.customer_input.setPlaceholderText("Имя клиента")
+        self.customer_input.setMinimumWidth(200)
+        form_layout.addRow("Клиент:", self.customer_input)
+
+        self.product_input = QLineEdit()
+        self.product_input.setPlaceholderText("Название продукта")
+        self.product_input.setMinimumWidth(200)
+        form_layout.addRow("Продукт:", self.product_input)
+
+        self.quantity_input = QLineEdit()
+        self.quantity_input.setPlaceholderText("Количество")
+        self.quantity_input.setMinimumWidth(100)
+        form_layout.addRow("Количество:", self.quantity_input)
+
+        self.price_input = QLineEdit()
+        self.price_input.setPlaceholderText("Цена за единицу")
+        self.price_input.setMinimumWidth(100)
+        form_layout.addRow("Цена:", self.price_input)
+
+        # Календарь для выбора даты
+        self.date_input = QDateEdit()
+        self.date_input.setDate(QDate.currentDate())
+        self.date_input.setCalendarPopup(True)  # Включаем выпадающий календарь
+        self.date_input.setDisplayFormat("yyyy-MM-dd")
+        self.date_input.setMinimumWidth(120)
+        form_layout.addRow("Дата доставки:", self.date_input)
+
+        # Кнопки
+        button_layout = QHBoxLayout()
+        add_button = QPushButton("Добавить заказ")
+        add_button.clicked.connect(self.add_order)
+
+        clear_button = QPushButton("Очистить форму")
+        clear_button.clicked.connect(self.clear_form)
+
+        button_layout.addWidget(add_button)
+        button_layout.addWidget(clear_button)
+        form_layout.addRow(button_layout)
+
+        input_group.setLayout(form_layout)
+        main_layout.addWidget(input_group)
+
+        # Средняя часть: таблица и график
+        middle_splitter = QSplitter(Qt.Horizontal)
+
+        # Таблица заказов
+        table_group = QGroupBox("Текущие заказы")
+        table_layout = QVBoxLayout()
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels([
+            "ID", "Клиент", "Продукт", "Кол-во", "Цена", "Дата доставки", "Статус"
+        ])
+        self.table.setSortingEnabled(True)
+        self.table.setAlternatingRowColors(True)
+
+        delete_button = QPushButton("Удалить выбранный заказ")
+        delete_button.clicked.connect(self.delete_selected_order)
+
+        refresh_button = QPushButton("Обновить таблицу")
+        refresh_button.clicked.connect(self.load_orders)
+
+        table_layout.addWidget(self.table)
+
+        button_layout2 = QHBoxLayout()
+        button_layout2.addWidget(delete_button)
+        button_layout2.addWidget(refresh_button)
+        table_layout.addLayout(button_layout2)
+
+        table_group.setLayout(table_layout)
+
+        middle_splitter.addWidget(table_group)
+
+        # График выручки
+        graph_group = QGroupBox("График выручки")
+        graph_layout = QVBoxLayout()
+        self.graph_widget = RevenueGraph()
+        graph_layout.addWidget(self.graph_widget)
+        graph_group.setLayout(graph_layout)
+
+        middle_splitter.addWidget(graph_group)
+
+        # Устанавливаем пропорции разделителя
+        middle_splitter.setSizes([700, 500])
+
+        main_layout.addWidget(middle_splitter)
+
+        # Нижняя панель: общая статистика
+        stats_group = QGroupBox("Общая статистика")
+        stats_layout = QVBoxLayout()
+
+        # Контейнер для меток статистики
+        stats_container = QWidget()
+        stats_container_layout = QHBoxLayout(stats_container)
+
+        # Метки для статистики
+        self.total_revenue_label = QLabel("Общая выручка: 0 руб")
+        self.total_revenue_label.setAlignment(Qt.AlignCenter)
+        self.total_revenue_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
+
+        self.total_orders_label = QLabel("Общее количество заказов: 0")
+        self.total_orders_label.setAlignment(Qt.AlignCenter)
+        self.total_orders_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
+
+        self.average_order_label = QLabel("Средняя стоимость заказа: 0 руб")
+        self.average_order_label.setAlignment(Qt.AlignCenter)
+        self.average_order_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
+
+        # Добавляем метки в контейнер
+        stats_container_layout.addWidget(self.total_revenue_label)
+        stats_container_layout.addWidget(self.total_orders_label)
+        stats_container_layout.addWidget(self.average_order_label)
+
+        stats_layout.addWidget(stats_container)
+        stats_group.setLayout(stats_layout)
+
+        main_layout.addWidget(stats_group)
+
+        # Статус бар
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("Готово")
