@@ -502,3 +502,184 @@ class DeliveryApp(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Готово")
+ def create_menu(self):
+        """Создание меню приложения"""
+        menubar = self.menuBar()
+
+        # Меню Файл
+        file_menu = menubar.addMenu("Файл")
+
+        refresh_action = QAction("Обновить всё", self)
+        refresh_action.triggered.connect(self.refresh_all)
+        file_menu.addAction(refresh_action)
+
+        export_action = QAction("Экспорт логов", self)
+        export_action.triggered.connect(self.export_logs)
+        file_menu.addAction(export_action)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction("Выход", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Меню График
+        graph_menu = menubar.addMenu("График")
+
+        days_7_action = QAction("Последние 7 дней", self)
+        days_7_action.triggered.connect(lambda: self.update_graph_with_days(7))
+        graph_menu.addAction(days_7_action)
+
+        days_30_action = QAction("Последние 30 дней", self)
+        days_30_action.triggered.connect(lambda: self.update_graph_with_days(30))
+        graph_menu.addAction(days_30_action)
+
+        days_90_action = QAction("Последние 90 дней", self)
+        days_90_action.triggered.connect(lambda: self.update_graph_with_days(90))
+        graph_menu.addAction(days_90_action)
+
+        # Меню Помощь
+        help_menu = menubar.addMenu("Помощь")
+
+        about_action = QAction("О программе", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+    def update_general_statistics(self):
+        """Обновление отображения общей статистики"""
+        try:
+            stats = self.db.get_general_statistics()
+
+            # Форматируем значения
+            total_revenue_formatted = f"{stats['total_revenue']:,.2f} руб"
+            average_order_formatted = f"{stats['average_order_value']:,.2f} руб"
+
+            # Обновляем метки
+            self.total_revenue_label.setText(f"Общая выручка: {total_revenue_formatted}")
+            self.total_orders_label.setText(f"Общее количество заказов: {stats['total_orders']}")
+            self.average_order_label.setText(f"Средняя стоимость заказа: {average_order_formatted}")
+
+        except Exception as e:
+            logging.error(f"Ошибка обновления общей статистики: {e}")
+
+    def update_graph_with_days(self, days: int):
+        """Обновление графика за указанное количество дней"""
+        try:
+            stats = self.db.get_revenue_stats(days)
+            self.graph_widget.update_graph(stats)
+            self.status_bar.showMessage(f"График обновлен: последние {days} дней", 3000)
+        except Exception as e:
+            logging.error(f"Ошибка обновления графика: {e}")
+
+    def clear_form(self):
+        """Очистка формы ввода"""
+        self.customer_input.clear()
+        self.product_input.clear()
+        self.quantity_input.clear()
+        self.price_input.clear()
+        self.date_input.setDate(QDate.currentDate())
+        self.status_bar.showMessage("Форма очищена", 2000)
+
+    def refresh_all(self):
+        """Обновить все данные"""
+        self.load_orders()
+        self.update_graph()
+        self.update_general_statistics()
+        self.status_bar.showMessage("Все данные обновлены", 2000)
+
+    def validate_input(self) -> tuple:
+        """Валидация введенных данных"""
+        try:
+            customer = self.customer_input.text().strip()
+            product = self.product_input.text().strip()
+            quantity_text = self.quantity_input.text().strip()
+            price_text = self.price_input.text().strip()
+            date_text = self.date_input.date().toString("yyyy-MM-dd")
+
+            if not customer:
+                raise InvalidDataError("Введите имя клиента")
+            if not product:
+                raise InvalidDataError("Введите название продукта")
+
+            try:
+                quantity = int(quantity_text)
+                if quantity <= 0:
+                    raise InvalidDataError("Количество должно быть положительным числом")
+            except ValueError:
+                raise InvalidDataError("Количество должно быть целым числом")
+
+            try:
+                price = float(price_text)
+                if price <= 0:
+                    raise InvalidDataError("Цена должна быть положительным числом")
+            except ValueError:
+                raise InvalidDataError("Цена должна быть числом")
+
+            # Проверка даты
+            try:
+                datetime.strptime(date_text, "%Y-%m-%d")
+            except ValueError:
+                raise InvalidDataError("Дата должна быть в формате ГГГГ-ММ-ДД")
+
+            return customer, product, quantity, price, date_text
+
+        except InvalidDataError as e:
+            raise
+        except Exception as e:
+            raise InvalidDataError(f"Ошибка валидации: {str(e)}")
+
+    def add_order(self):
+        """Добавление нового заказа"""
+        try:
+            customer, product, quantity, price, delivery_date = self.validate_input()
+
+            order_id = self.db.add_order(customer, product, quantity, price, delivery_date)
+
+            total_amount = price * quantity
+            QMessageBox.information(self, "Успех",
+                                    f"Заказ №{order_id} успешно добавлен!\n"
+                                    f"Сумма заказа: {total_amount:.2f} руб")
+
+            # Очистка полей ввода
+            self.clear_form()
+
+            # Обновление данных
+            self.refresh_all()
+            self.status_bar.showMessage(f"Добавлен заказ №{order_id} на сумму {total_amount:.2f} руб", 3000)
+
+        except InvalidDataError as e:
+            QMessageBox.warning(self, "Ошибка ввода", str(e))
+            logging.warning(f"Ошибка ввода данных: {e}")
+        except DatabaseError as e:
+            QMessageBox.critical(self, "Ошибка БД", str(e))
+            logging.error(f"Ошибка базы данных: {e}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Неизвестная ошибка: {str(e)}")
+            logging.error(f"Неизвестная ошибка: {e}")
+
+    def load_orders(self):
+        """Загрузка заказов в таблицу"""
+        try:
+            orders = self.db.get_all_orders()
+            self.table.setRowCount(len(orders))
+
+            for row, order in enumerate(orders):
+                for col, value in enumerate(order):
+                    item = QTableWidgetItem(str(value) if value is not None else "")
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+                    # Выравнивание числовых полей по правому краю
+                    if col in [3, 4]:  # Колонки с количеством и ценой
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+                    self.table.setItem(row, col, item)
+
+            self.table.resizeColumnsToContents()
+            self.status_bar.showMessage(f"Загружено {len(orders)} заказов", 3000)
+
+        except DatabaseError as e:
+            QMessageBox.critical(self, "Ошибка БД", str(e))
+            logging.error(f"Ошибка загрузки заказов: {e}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при загрузке заказов: {str(e)}")
+            logging.error(f"Ошибка при загрузке заказов: {e}")
