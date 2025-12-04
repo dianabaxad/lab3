@@ -298,6 +298,7 @@ class DeliveryDatabase:
             if 'conn' in locals():
                 conn.close()
 
+
 # Виджет для отображения графика - дата и выручка
 class RevenueGraph(QWidget):
     def __init__(self):
@@ -306,45 +307,47 @@ class RevenueGraph(QWidget):
         self.canvas = FigureCanvas(self.figure)
         self.init_ui()
 
-        def init_ui(self):
-            layout = QVBoxLayout()
-            layout.addWidget(self.canvas)
-            self.setLayout(layout)
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        self.setLayout(layout)
 
-        def update_graph(self, stats: List[Tuple]):
-            """Обновление графика выручки"""
-            self.ax.clear()
+    def update_graph(self, stats: List[Tuple]):
+        """Обновление графика выручки"""
+        self.ax.clear()
 
-            if stats:
-                dates = [stat[0] for stat in stats]
-                revenue = [stat[1] for stat in stats]
+        if stats:
+            dates = [stat[0] for stat in stats]
+            revenue = [stat[1] for stat in stats]
 
-                # Создаем линейный график выручки
-                self.ax.plot(dates, revenue, 'g-o', linewidth=2, markersize=5)
+            # Создаем линейный график выручки
+            self.ax.plot(dates, revenue, 'g-o', linewidth=2, markersize=5)
 
-                # Настройки графика
-                self.ax.set_xlabel('Дата')
-                self.ax.set_ylabel('Выручка (руб)', color='g')
-                self.ax.tick_params(axis='y', labelcolor='g')
-                self.ax.grid(True, alpha=0.3)
+            # Настройки графика
+            self.ax.set_xlabel('Дата')
+            self.ax.set_ylabel('Выручка (руб)', color='g')
+            self.ax.tick_params(axis='y', labelcolor='g')
+            self.ax.grid(True, alpha=0.3)
 
-                self.ax.set_title('Выручка по дням (последние 30 дней)')
-                self.ax.tick_params(axis='x', rotation=45)
+            self.ax.set_title('Выручка по дням (последние 30 дней)')
+            self.ax.tick_params(axis='x', rotation=45)
 
-                # Форматируем значения на оси Y как денежные
-                self.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f} руб'))
+            # Форматируем значения на оси Y как денежные
+            self.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f} руб'))
 
-                self.figure.tight_layout()
-            else:
-                # Отображаем сообщение, если нет данных
-                self.ax.text(0.5, 0.5, 'Нет данных для отображения\nДобавьте первый заказ',
-                             horizontalalignment='center', verticalalignment='center',
-                             transform=self.ax.transAxes, fontsize=12)
-                self.ax.set_title('Выручка по дням')
-                self.ax.set_xticks([])
-                self.ax.set_yticks([])
+            self.figure.tight_layout()
+        else:
+            # Отображаем сообщение, если нет данных
+            self.ax.text(0.5, 0.5, 'Нет данных для отображения\nДобавьте первый заказ',
+                         horizontalalignment='center', verticalalignment='center',
+                         transform=self.ax.transAxes, fontsize=12)
+            self.ax.set_title('Выручка по дням')
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
 
-            self.canvas.draw()
+        self.canvas.draw()
+
+
 # Главное окно приложения
 class DeliveryApp(QMainWindow):
     def __init__(self):
@@ -502,7 +505,8 @@ class DeliveryApp(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Готово")
- def create_menu(self):
+
+    def create_menu(self):
         """Создание меню приложения"""
         menubar = self.menuBar()
 
@@ -683,3 +687,98 @@ class DeliveryApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при загрузке заказов: {str(e)}")
             logging.error(f"Ошибка при загрузке заказов: {e}")
+
+    def update_graph(self):
+        """Обновление графика выручки"""
+        try:
+            stats = self.db.get_revenue_stats(30)  # По умолчанию последние 30 дней
+            self.graph_widget.update_graph(stats)
+        except Exception as e:
+            logging.error(f"Ошибка обновления графика: {e}")
+
+    def delete_selected_order(self):
+        """Удаление выбранного заказа"""
+        selected_rows = set()
+        for item in self.table.selectedItems():
+            selected_rows.add(item.row())
+
+        if not selected_rows:
+            QMessageBox.warning(self, "Внимание", "Выберите заказ для удаления")
+            return
+
+        row = list(selected_rows)[0]
+        order_id_item = self.table.item(row, 0)
+
+        if order_id_item and order_id_item.text():
+            try:
+                order_id = int(order_id_item.text())
+                customer = self.table.item(row, 1).text()
+                product = self.table.item(row, 2).text()
+
+                reply = QMessageBox.question(
+                    self, "Подтверждение",
+                    f"Удалить заказ №{order_id}?\nКлиент: {customer}\nПродукт: {product}",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+
+                if reply == QMessageBox.Yes:
+                    self.db.delete_order(order_id)
+                    self.refresh_all()
+                    self.status_bar.showMessage(f"Удален заказ №{order_id}", 3000)
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", "Неверный ID заказа")
+            except DatabaseError as e:
+                QMessageBox.critical(self, "Ошибка БД", str(e))
+                logging.error(f"Ошибка удаления заказа: {e}")
+
+    def export_logs(self):
+        """Экспорт логов"""
+        try:
+            log_file = 'delivery_activity.log'
+            if not os.path.exists(log_file):
+                QMessageBox.warning(self, "Внимание", "Файл логов не найден")
+                return
+
+            with open(log_file, 'r', encoding='utf-8') as f:
+                logs = f.read()
+
+            export_file = f'delivery_logs_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+            with open(export_file, 'w', encoding='utf-8') as f:
+                f.write(logs)
+
+            QMessageBox.information(self, "Успех", f"Логи успешно экспортированы в {export_file}")
+            logging.info(f"Логи экспортированы в {export_file}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка экспорта логов: {str(e)}")
+            logging.error(f"Ошибка экспорта логов: {e}")
+
+    def show_about(self):
+        """Показать информацию о программе"""
+        about_text = """
+        <h2>Сервис доставки продуктов</h2>
+        <p>Версия 1.2</p>
+        <p>Приложение для управления заказами доставки продуктов.</p>
+        <p>Функции:</p>
+        <ul>
+            <li>Добавление и удаление заказов</li>
+            <li>Просмотр статистики в таблице</li>
+            <li>График выручки по дням</li>
+            <li>Общая статистика: выручка, количество заказов, средняя стоимость</li>
+            <li>Логирование всех действий</li>
+        </ul>
+        <p>График показывает выручку (доход) по дням.</p>
+        <p>Все данные хранятся в локальной базе SQLite.</p>
+        """
+        QMessageBox.about(self, "О программе", about_text)
+
+
+def main():
+    app = QApplication(sys.argv)
+    window = DeliveryApp()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
