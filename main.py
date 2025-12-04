@@ -305,3 +305,43 @@ class RevenueGraph(QWidget):
         self.figure, self.ax = plt.subplots(figsize=(8, 4))
         self.canvas = FigureCanvas(self.figure)
         self.init_ui()
+
+        def init_ui(self):
+            layout = QVBoxLayout()
+            layout.addWidget(self.canvas)
+            self.setLayout(layout)
+
+        def update_graph(self, stats: List[Tuple]):
+            """Обновление графика выручки"""
+            self.ax.clear()
+
+            if stats:
+                dates = [stat[0] for stat in stats]
+                revenue = [stat[1] for stat in stats]
+
+                # Создаем линейный график выручки
+                self.ax.plot(dates, revenue, 'g-o', linewidth=2, markersize=5)
+
+                # Настройки графика
+                self.ax.set_xlabel('Дата')
+                self.ax.set_ylabel('Выручка (руб)', color='g')
+                self.ax.tick_params(axis='y', labelcolor='g')
+                self.ax.grid(True, alpha=0.3)
+
+                self.ax.set_title('Выручка по дням (последние 30 дней)')
+                self.ax.tick_params(axis='x', rotation=45)
+
+                # Форматируем значения на оси Y как денежные
+                self.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f} руб'))
+
+                self.figure.tight_layout()
+            else:
+                # Отображаем сообщение, если нет данных
+                self.ax.text(0.5, 0.5, 'Нет данных для отображения\nДобавьте первый заказ',
+                             horizontalalignment='center', verticalalignment='center',
+                             transform=self.ax.transAxes, fontsize=12)
+                self.ax.set_title('Выручка по дням')
+                self.ax.set_xticks([])
+                self.ax.set_yticks([])
+
+            self.canvas.draw()
