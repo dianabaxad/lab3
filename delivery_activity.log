@@ -1,0 +1,11 @@
+2025-12-04 04:05:23,180 - INFO - Инициализация базы данных: delivery.db
+2025-12-04 04:05:23,182 - INFO - Создана новая база данных: delivery.db
+2025-12-04 04:05:23,207 - INFO - Создана таблица 'orders'
+2025-12-04 04:05:23,216 - INFO - Создана таблица 'activity'
+2025-12-04 04:05:23,302 - INFO - Инициализация базы данных: delivery.db
+2025-12-04 04:12:07,250 - INFO - Добавлен новый заказ №1 от дианка на сумму 600.0 руб.
+2025-12-04 04:12:09,451 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-12-04 04:12:09,470 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-12-04 04:12:21,503 - INFO - Инициализация базы данных: delivery.db
+2025-12-04 04:12:21,603 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-12-04 04:12:21,605 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
